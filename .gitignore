@@ -140,9 +140,7 @@ cython_debug/
 
 BAAI
 data
-local_qdrant
 storeQ
-storeQ_test
 llamaindex-practices.ipynb
 milvus-practices.ipynb
 qdrant-practices.ipynb
