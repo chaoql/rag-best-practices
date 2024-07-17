@@ -12,6 +12,9 @@ from llama_index.core.postprocessor import MetadataReplacementPostProcessor
 from llama_index.core.prompts import LangchainPromptTemplate
 from langchain import hub
 from llama_index.core import PromptTemplate
+from llama_index.core.indices.query.query_transform import HyDEQueryTransform
+from llama_index.core.query_engine import TransformQueryEngine
+
 warnings.filterwarnings('ignore')
 
 # 加载嵌入模型
@@ -75,8 +78,12 @@ query_engine = index.as_query_engine(similarity_top_k=2,
                                      text_qa_template=qa_prompt_tmpl,
                                      )
 
+# HyDE
+hyde = HyDEQueryTransform(include_original=True)
+hyde_query_engine = TransformQueryEngine(query_engine, hyde)
+
 # 响应
-response = query_engine.query(query_str)
+response = hyde_query_engine.query(query_str)
 window = response.source_nodes[0].node.metadata["window"]  # 长度为3的窗口，包含了文本两侧的上下文。
 sentence = response.source_nodes[0].node.metadata["original_sentence"]  # 检索到的文本
 
