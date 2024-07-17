@@ -9,7 +9,9 @@ from llama_index.core import StorageContext
 import warnings
 from llama_index.core.node_parser import SentenceWindowNodeParser
 from llama_index.core.postprocessor import MetadataReplacementPostProcessor
-
+from llama_index.core.prompts import LangchainPromptTemplate
+from langchain import hub
+from llama_index.core import PromptTemplate
 warnings.filterwarnings('ignore')
 
 # 加载嵌入模型
@@ -52,6 +54,16 @@ except:
 
 # prompt
 query_str = "How old is the boy's mother?"
+qa_prompt_tmpl_str = """
+Context information is below.
+---------------------
+{context_str}
+---------------------
+Given the context information and not prior knowledge, answer the query.
+Query: {query_str}
+Answer: 
+"""
+qa_prompt_tmpl = PromptTemplate(qa_prompt_tmpl_str)
 
 # replace the sentence in each node with its surrounding context.
 query_engine = index.as_query_engine(similarity_top_k=2,
@@ -59,6 +71,8 @@ query_engine = index.as_query_engine(similarity_top_k=2,
                                      node_postprocessors=[
                                          MetadataReplacementPostProcessor(target_metadata_key="window")
                                      ],
+                                     # 自定义prompt Template
+                                     text_qa_template=qa_prompt_tmpl,
                                      )
 
 # 响应
@@ -66,6 +80,8 @@ response = query_engine.query(query_str)
 window = response.source_nodes[0].node.metadata["window"]  # 长度为3的窗口，包含了文本两侧的上下文。
 sentence = response.source_nodes[0].node.metadata["original_sentence"]  # 检索到的文本
 
+print(f"Question: {str(query_str)}")
+print("------------------")
 print(f"Response: {str(response)}")
 print("------------------")
 print(f"Window: {window}")
@@ -73,10 +89,11 @@ print("------------------")
 print(f"Original Sentence: {sentence}")
 
 """
+Question: How old is the boy's mother?
+------------------
 Response: The boy's mother is described as having "thirty outside" which likely refers to her age. However, without further context or clarification from the text, it is impossible to determine exactly how old she is. The sentence suggests that she has been working hard and may be tired, but this does not necessarily imply a specific age.
 ------------------
 Window: She had removed her dark glasses, and her eyebrows were clear, but her lips were too thin, and the lipstick was not rich enough.  If she stood up from the canvas recliner, she would look thin, perhaps the lines of her silhouette were too hard, like the strokes of a square-tipped fountain pen.  She looked twenty-five or twenty-six years old, but the age of a new school woman is like the age of an old-fashioned woman's wedding invitation, which requires what the expert scientist calls extrinsic evidence to determine its authenticity, and which cannot be seen by itself.  The boy's mother has thirty outside, wearing a half old black cheongsam, full of labor and tiredness, coupled with the natural upside down eyebrows, the more sad and pathetic.  The child is less than two years old, collapsed nose, two slits in the eyes, eyebrows high above, and eyes far away from each other to suffer from lovesickness, like the Chinese face in the newspaper caricature.  He had just begun to walk, and was constantly running about; his mother held a leash on him, and pulled him back when he could not run more than three or four steps.  His mother, who was afraid of the heat, was tired of pulling him, but she was also concerned about her husband's success down there and couldn't stop scolding the boy for being a nuisance. 
 ------------------
 Original Sentence: The boy's mother has thirty outside, wearing a half old black cheongsam, full of labor and tiredness, coupled with the natural upside down eyebrows, the more sad and pathetic.
-
 """
