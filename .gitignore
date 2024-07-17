@@ -136,3 +136,12 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+
+BAAI
+data
+storeQ
+llamaindex-practices.ipynb
+milvus-practices.ipynb
+qdrant-practices.ipynb
+rag.ipynb
