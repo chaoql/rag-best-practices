@@ -14,7 +14,8 @@ from langchain import hub
 from llama_index.core import PromptTemplate
 from llama_index.core.indices.query.query_transform import HyDEQueryTransform
 from llama_index.core.query_engine import TransformQueryEngine
-
+from llama_index.core.postprocessor import LLMRerank
+from llama_index.core.postprocessor import SentenceTransformerRerank
 warnings.filterwarnings('ignore')
 
 # 加载嵌入模型
@@ -68,11 +69,14 @@ Answer:
 """
 qa_prompt_tmpl = PromptTemplate(qa_prompt_tmpl_str)
 
-# replace the sentence in each node with its surrounding context.
+# build query_engine
 query_engine = index.as_query_engine(similarity_top_k=2,
                                      # the target key defaults to `window` to match the node_parser's default
                                      node_postprocessors=[
-                                         MetadataReplacementPostProcessor(target_metadata_key="window")
+                                         # LLM reranker
+                                         LLMRerank(top_n=2, llm=Settings.llm),
+                                         # replace the sentence in each node with its surrounding context.
+                                         MetadataReplacementPostProcessor(target_metadata_key="window"),
                                      ],
                                      # 自定义prompt Template
                                      text_qa_template=qa_prompt_tmpl,
