@@ -139,7 +139,6 @@ cython_debug/
 
 
 BAAI
-data
 storeQ
 llamaindex-practices.ipynb
 milvus-practices.ipynb

@@ -30,10 +30,6 @@ Settings.embed_model = HuggingFaceEmbedding(
 # 加载大模型
 Settings.llm = Ollama(model="qwen2:1.5b", request_timeout=30.0, temperature=0)
 
-# 部署向量数据库
-client = qdrant_client.QdrantClient()
-vector_store = QdrantVectorStore(client=client, collection_name="paul_graham")
-
 # load data
 documents = SimpleDirectoryReader("./data").load_data()
 
@@ -48,7 +44,11 @@ node_parser = SentenceWindowNodeParser.from_defaults(
 )
 nodes = node_parser.get_nodes_from_documents(documents, show_progress=False)
 
-# indexing
+# define VectorStore
+client = qdrant_client.QdrantClient()
+vector_store = QdrantVectorStore(client=client, collection_name="paul_graham")
+
+# indexing & storing
 try:
     storage_context = StorageContext.from_defaults(vector_store=vector_store, persist_dir="storeQ")
     index = VectorStoreIndex(nodes=nodes, storage_context=storage_context)
