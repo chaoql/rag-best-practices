@@ -14,23 +14,8 @@ Generation](https://arxiv.org/abs/2407.01219)中提到的方案进行实现，�
 - Summarization：Recomp | Fangyuan Xu,Weijia Shi, and Eunsol Choi. Recomp: Improving retrieval-augmented lms with compression and selective augmentation. arXiv preprint arXiv:2310.04408, 2023.
 - Generator Fine-tuning：混合相关和随机上下文可以增强生成器对无关信息的鲁棒性，同时保证相关信息的有效利用。用一个相关文档和一个随机选择的文档来训练。
 
-我将对上述模块进行逐一实现，develop分支将持续更新，master分支版本使用较为稳定。当前开发进度如下：
+我将对上述模块进行逐一实现，develop分支将持续更新，master分支版本使用较为稳定。
 
-[x] Qdrant部署：Docker容器
-[x] LLM下载：Ollama本地运行Qwen2-1.5b
-[x] Embedding选择BAAI/bge-large-zh-v1.5。后续考虑更换LLM-Embedder
-[x] 构建实验知识库
-[x] 构建简单RAG链
-[x] 自定义prompt
-[] 增加Query Classification
-[x] 实现sliding window分块
-[x] 实现HyDE（pseudoDoc+query）
-[] 实现Hybrid Search，完成Retrieval构建
-[x] 增加重排序模型
-[] 实现Repacking-reverse
-[] 增加Summarization
-[] Embedding Fine-tuning
-[] Generator Fine-tuning
 #### 软件架构
 项目基于 LlamaIndex RAG框架实现，向量数据库选择Qdrant。
 大模型选择基于Ollama本地调用qwen2-1.5b模型，嵌入模型选择BAAI/bge-large-zh-v1.5。
@@ -53,3 +38,13 @@ Generation](https://arxiv.org/abs/2407.01219)中提到的方案进行实现，�
 2.  新建 Feat_xxx 分支
 3.  提交代码
 4.  新建 Pull Request
+
+#### 引用
+```
+@inproceedings{Wang2024SearchingFB,
+title={Searching for Best Practices in Retrieval-Augmented Generation},
+author={Xiaohua Wang and Zhenghua Wang and Xuan Gao and Feiran Zhang and Yixin Wu and Zhibo Xu and Tianyuan Shi and Zhengyuan Wang and Shizheng Li and Qi Qian and Ruicheng Yin and Changze Lv and Xiaoqing Zheng and Xuanjing Huang},
+year={2024},
+url={https://api.semanticscholar.org/CorpusID:270870251}
+}
+```
