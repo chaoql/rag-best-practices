@@ -9,13 +9,13 @@ from llama_index.core import StorageContext
 import warnings
 from llama_index.core.node_parser import SentenceWindowNodeParser
 from llama_index.core.postprocessor import MetadataReplacementPostProcessor
-from llama_index.core.prompts import LangchainPromptTemplate
-from langchain import hub
 from llama_index.core import PromptTemplate
 from llama_index.core.indices.query.query_transform import HyDEQueryTransform
 from llama_index.core.query_engine import TransformQueryEngine
 from llama_index.core.postprocessor import LLMRerank
-from llama_index.core.postprocessor import SentenceTransformerRerank
+from llama_index.core import get_response_synthesizer
+from llama_index.core.response_synthesizers.type import ResponseMode
+
 warnings.filterwarnings('ignore')
 
 # 加载嵌入模型
@@ -71,6 +71,8 @@ qa_prompt_tmpl = PromptTemplate(qa_prompt_tmpl_str)
 
 # build query_engine
 query_engine = index.as_query_engine(similarity_top_k=2,
+                                     # 自定义prompt Template
+                                     text_qa_template=qa_prompt_tmpl,
                                      # the target key defaults to `window` to match the node_parser's default
                                      node_postprocessors=[
                                          # LLM reranker
@@ -78,8 +80,9 @@ query_engine = index.as_query_engine(similarity_top_k=2,
                                          # replace the sentence in each node with its surrounding context.
                                          MetadataReplacementPostProcessor(target_metadata_key="window"),
                                      ],
-                                     # 自定义prompt Template
-                                     text_qa_template=qa_prompt_tmpl,
+                                     # 对上下文进行简单摘要，当上下文较长或检索到的块较多时应使用tree_summary，否则使用simple_summary。
+                                     response_synthesizer=get_response_synthesizer(
+                                         response_mode=ResponseMode.TREE_SUMMARIZE),
                                      )
 
 # HyDE
