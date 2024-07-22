@@ -1,22 +1,24 @@
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.core import Settings
 from llama_index.llms.ollama import Ollama
-from llama_index.core import SimpleDirectoryReader
-from llama_index.core import VectorStoreIndex
-import qdrant_client
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-from llama_index.core import StorageContext
-import warnings
 from llama_index.core.node_parser import SentenceWindowNodeParser
 from llama_index.core.postprocessor import MetadataReplacementPostProcessor
-from llama_index.core import PromptTemplate
+from llama_index.core import PromptTemplate, get_response_synthesizer, StorageContext, VectorStoreIndex, \
+    SimpleDirectoryReader, Settings
 from llama_index.core.indices.query.query_transform import HyDEQueryTransform
 from llama_index.core.query_engine import TransformQueryEngine
 from llama_index.core.postprocessor import LLMRerank
-from llama_index.core import get_response_synthesizer
 from llama_index.core.response_synthesizers.type import ResponseMode
+from llama_index.core import (
+    load_index_from_storage,
+)
+from llama_index.core.storage.docstore import SimpleDocumentStore
+from llama_index.core.storage.index_store import SimpleIndexStore
+from llama_index.core.vector_stores import SimpleVectorStore
+import warnings
 
 warnings.filterwarnings('ignore')
+with_hyde = False
+persist_dir = "storeQ"
 
 # 加载嵌入模型
 Settings.embed_model = HuggingFaceEmbedding(
@@ -44,20 +46,21 @@ node_parser = SentenceWindowNodeParser.from_defaults(
 )
 nodes = node_parser.get_nodes_from_documents(documents, show_progress=False)
 
-# define VectorStore
-client = qdrant_client.QdrantClient()
-vector_store = QdrantVectorStore(client=client, collection_name="paul_graham")
-
 # indexing & storing
 try:
-    storage_context = StorageContext.from_defaults(vector_store=vector_store, persist_dir="storeQ")
-    index = VectorStoreIndex(nodes=nodes, storage_context=storage_context)
+    storage_context = StorageContext.from_defaults(
+        docstore=SimpleDocumentStore.from_persist_dir(persist_dir=persist_dir),
+        vector_store=SimpleVectorStore.from_persist_dir(persist_dir=persist_dir),
+        index_store=SimpleIndexStore.from_persist_dir(persist_dir=persist_dir),
+    )
+    index = load_index_from_storage(storage_context)
 except:
     index = VectorStoreIndex(nodes=nodes)
-    index.storage_context.persist(persist_dir="storeQ")
+    index.storage_context.persist(persist_dir=persist_dir)
 
 # prompt
-query_str = "How old is the boy's mother?"
+query_str = "How many people are on the deck after ten o'clock?"
+# query_str = "what is computer science?"
 qa_prompt_tmpl_str = """
 Context information is below.
 ---------------------
@@ -69,38 +72,43 @@ Answer:
 """
 qa_prompt_tmpl = PromptTemplate(qa_prompt_tmpl_str)
 
-# build query_engine
-query_engine = index.as_query_engine(similarity_top_k=2,
-                                     # 自定义prompt Template
-                                     text_qa_template=qa_prompt_tmpl,
-                                     # the target key defaults to `window` to match the node_parser's default
-                                     node_postprocessors=[
-                                         # LLM reranker
-                                         LLMRerank(top_n=2, llm=Settings.llm),
-                                         # replace the sentence in each node with its surrounding context.
-                                         MetadataReplacementPostProcessor(target_metadata_key="window"),
-                                     ],
-                                     # 对上下文进行简单摘要，当上下文较长或检索到的块较多时应使用tree_summary，否则使用simple_summary。
-                                     response_synthesizer=get_response_synthesizer(
-                                         response_mode=ResponseMode.TREE_SUMMARIZE),
-                                     )
+# Build query_engine
+# Build a tree index over the set of candidate nodes, with a summary prompt seeded with the query. with LLM reranker
+rag_query_engine = index.as_query_engine(similarity_top_k=2,
+                                         # 自定义prompt Template
+                                         text_qa_template=qa_prompt_tmpl,
+                                         # the target key defaults to `window` to match the node_parser's default
+                                         node_postprocessors=[
+                                             # LLM reranker
+                                             LLMRerank(top_n=2, llm=Settings.llm),
+                                             # replace the sentence in each node with its surrounding context.
+                                             MetadataReplacementPostProcessor(target_metadata_key="window"),
+                                         ],
+                                         # 对上下文进行简单摘要，当上下文较长或检索到的块较多时应使用tree_summary，否则使用simple_summary。
+                                         response_synthesizer=get_response_synthesizer(
+                                             response_mode=ResponseMode.TREE_SUMMARIZE),
+                                         )
 
-# HyDE
-hyde = HyDEQueryTransform(include_original=True)
-hyde_query_engine = TransformQueryEngine(query_engine, hyde)
+# HyDE(当问题较为简单时，不需要该模块参与)
+if with_hyde:
+    hyde = HyDEQueryTransform(include_original=True)
+    rag_query_engine = TransformQueryEngine(rag_query_engine, hyde)
 
-# 响应
-response = hyde_query_engine.query(query_str)
-window = response.source_nodes[0].node.metadata["window"]  # 长度为3的窗口，包含了文本两侧的上下文。
-sentence = response.source_nodes[0].node.metadata["original_sentence"]  # 检索到的文本
-
+# response
+response = rag_query_engine.query(query_str)
 print(f"Question: {str(query_str)}")
 print("------------------")
 print(f"Response: {str(response)}")
 print("------------------")
-print(f"Window: {window}")
-print("------------------")
-print(f"Original Sentence: {sentence}")
+try:
+    window = response.source_nodes[0].node.metadata["window"]  # 长度为3的窗口，包含了文本两侧的上下文。
+    sentence = response.source_nodes[0].node.metadata["original_sentence"]  # 检索到的文本
+    print(f"Window: {window}")
+    print("------------------")
+    print(f"Original Sentence: {sentence}")
+    print("------------------")
+except:
+    pass
 
 """
 Question: How old is the boy's mother?
