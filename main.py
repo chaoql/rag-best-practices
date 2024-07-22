@@ -8,17 +8,21 @@ from llama_index.core.indices.query.query_transform import HyDEQueryTransform
 from llama_index.core.query_engine import TransformQueryEngine
 from llama_index.core.postprocessor import LLMRerank
 from llama_index.core.response_synthesizers.type import ResponseMode
-from llama_index.core import (
-    load_index_from_storage,
-)
+from llama_index.core import load_index_from_storage
+from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core.vector_stores import SimpleVectorStore
+from llama_index.retrievers.bm25 import BM25Retriever
+from llama_index.core.retrievers import VectorIndexRetriever
+import Stemmer
+from custom.retriever import CustomRetriever
 import warnings
 
 warnings.filterwarnings('ignore')
-with_hyde = False
-persist_dir = "storeQ"
+with_hyde = False  # 是否采用假设文档
+persist_dir = "storeQ"  # 向量存储地址
+hybrid_search = True  # 是否采用混合检索
 
 # 加载嵌入模型
 Settings.embed_model = HuggingFaceEmbedding(
@@ -73,18 +77,39 @@ Answer:
 qa_prompt_tmpl = PromptTemplate(qa_prompt_tmpl_str)
 
 # Build query_engine
-# Build a tree index over the set of candidate nodes, with a summary prompt seeded with the query. with LLM reranker
-rag_query_engine = index.as_query_engine(similarity_top_k=2,
-                                         # 自定义prompt Template
+if hybrid_search:
+    bm25_retriever = BM25Retriever.from_defaults(
+        nodes=nodes,
+        similarity_top_k=2,
+        stemmer=Stemmer.Stemmer("english"),
+        language="english",
+    )
+    vector_retriever = VectorIndexRetriever(index=index, similarity_top_k=2)
+    custom_retriever = CustomRetriever(vector_retriever, bm25_retriever)
+    query_engine = RetrieverQueryEngine.from_args(
+        # 自定义prompt Template
+        text_qa_template=qa_prompt_tmpl,
+        # hybrid search
+        retriever=custom_retriever,
+        # the target key defaults to `window` to match the node_parser's default
+        node_postprocessors=[
+            # LLM reranker
+            LLMRerank(top_n=2, llm=Settings.llm),
+            # replace the sentence in each node with its surrounding context.
+            MetadataReplacementPostProcessor(target_metadata_key="window"),
+        ],
+        # 对上下文进行简单摘要，当上下文较长或检索到的块较多时应使用tree_summary，否则使用simple_summary。
+        response_synthesizer=get_response_synthesizer(
+            response_mode=ResponseMode.TREE_SUMMARIZE),
+    )
+else:
+    # Build a tree index over the set of candidate nodes, with a summary prompt seeded with the query. with LLM reranker
+    query_engine = index.as_query_engine(similarity_top_k=2,
                                          text_qa_template=qa_prompt_tmpl,
-                                         # the target key defaults to `window` to match the node_parser's default
                                          node_postprocessors=[
-                                             # LLM reranker
                                              LLMRerank(top_n=2, llm=Settings.llm),
-                                             # replace the sentence in each node with its surrounding context.
                                              MetadataReplacementPostProcessor(target_metadata_key="window"),
                                          ],
-                                         # 对上下文进行简单摘要，当上下文较长或检索到的块较多时应使用tree_summary，否则使用simple_summary。
                                          response_synthesizer=get_response_synthesizer(
                                              response_mode=ResponseMode.TREE_SUMMARIZE),
                                          )
@@ -92,10 +117,10 @@ rag_query_engine = index.as_query_engine(similarity_top_k=2,
 # HyDE(当问题较为简单时，不需要该模块参与)
 if with_hyde:
     hyde = HyDEQueryTransform(include_original=True)
-    rag_query_engine = TransformQueryEngine(rag_query_engine, hyde)
+    query_engine = TransformQueryEngine(query_engine, hyde)
 
 # response
-response = rag_query_engine.query(query_str)
+response = query_engine.query(query_str)
 print(f"Question: {str(query_str)}")
 print("------------------")
 print(f"Response: {str(response)}")
@@ -111,11 +136,12 @@ except:
     pass
 
 """
-Question: How old is the boy's mother?
+Question: How many people are on the deck after ten o'clock?
 ------------------
-Response: The boy's mother is described as having "thirty outside" which likely refers to her age. However, without further context or clarification from the text, it is impossible to determine exactly how old she is. The sentence suggests that she has been working hard and may be tired, but this does not necessarily imply a specific age.
+Response: After ten o'clock, there were only three or five pairs of men and women on the deck.
 ------------------
-Window: She had removed her dark glasses, and her eyebrows were clear, but her lips were too thin, and the lipstick was not rich enough.  If she stood up from the canvas recliner, she would look thin, perhaps the lines of her silhouette were too hard, like the strokes of a square-tipped fountain pen.  She looked twenty-five or twenty-six years old, but the age of a new school woman is like the age of an old-fashioned woman's wedding invitation, which requires what the expert scientist calls extrinsic evidence to determine its authenticity, and which cannot be seen by itself.  The boy's mother has thirty outside, wearing a half old black cheongsam, full of labor and tiredness, coupled with the natural upside down eyebrows, the more sad and pathetic.  The child is less than two years old, collapsed nose, two slits in the eyes, eyebrows high above, and eyes far away from each other to suffer from lovesickness, like the Chinese face in the newspaper caricature.  He had just begun to walk, and was constantly running about; his mother held a leash on him, and pulled him back when he could not run more than three or four steps.  His mother, who was afraid of the heat, was tired of pulling him, but she was also concerned about her husband's success down there and couldn't stop scolding the boy for being a nuisance. 
+Window: Sun with two empty chairs.  Fortunately, the cigarette incident just now fell into their eyes.  That evening, there was a sea breeze and the boat was a bit bumpy.  After ten o'clock, there were only three or five pairs of men and women on the deck, all hiding in the dark shadows that could not be illuminated by the lights, whispering sweet words.  Fang Hongjian and Miss Bao walked side by side without saying a word.  A big wave shook the hull of the ship, and Miss Bao couldn't stand steadily.  Fang Hongjian hooked her waist and leaned against the railing, kissing her greedily. 
 ------------------
-Original Sentence: The boy's mother has thirty outside, wearing a half old black cheongsam, full of labor and tiredness, coupled with the natural upside down eyebrows, the more sad and pathetic.
+Original Sentence: After ten o'clock, there were only three or five pairs of men and women on the deck, all hiding in the dark shadows that could not be illuminated by the lights, whispering sweet words. 
+------------------
 """
