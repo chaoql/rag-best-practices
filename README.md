@@ -3,7 +3,7 @@
 #### 介绍
 大模型检索增强生成技术最佳实践。本项目对论文[Searching for Best Practices in Retrieval-Augmented
 Generation](https://arxiv.org/abs/2407.01219)中提到的方案进行实现，论文中将RAG过程划分为如下阶段，并通过实验说明每个阶段模块选择最佳实践方案。
-![img.png](img.png)
+![image/img.png](image/img.png)
 - Query Classification：并非所有查询都需要检索增强。
 - Chunking：块大小显著影响性能。更大的块提供了更多的上下文，增强了理解，但增加了处理时间。较小的分块提高了检索的召回率，减少了时间，但可能缺乏足够的上下文。使用sliding window技术更加有效，即将文本按照句子进行划分，每个块包含窗口大小个句子。
 - Embedding：嵌入模型选择LLM-Embedder，其与BAAI/big-large-en的效果相当，但前者的大小比后者小三倍。
@@ -22,7 +22,7 @@ Generation](https://arxiv.org/abs/2407.01219)中提到的方案进行实现，�
 选择原因：
 1. LlamaIndex框架对当前较为常用的技术进行了模块化封装，个人认为相较于langchain框架来说，其抽象层级更高，把更多的时间用于高层次的思考，而不是陷入编程的细节。
 2. Qdrant数据库比Milvus更容易部署，且文档较为详细直观。
-
+![img_1.png](image%2Fimg_1.png)
 
 #### 安装教程
 
@@ -40,6 +40,7 @@ Generation](https://arxiv.org/abs/2407.01219)中提到的方案进行实现，�
 4.  新建 Pull Request
 
 #### 引用
+项目基于如下论文：
 ```
 @inproceedings{Wang2024SearchingFB,
 title={Searching for Best Practices in Retrieval-Augmented Generation},
