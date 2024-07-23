@@ -23,14 +23,14 @@ warnings.filterwarnings('ignore')
 with_hyde = False  # 是否采用假设文档
 persist_dir = "storeQ"  # 向量存储地址
 hybrid_search = True  # 是否采用混合检索
-
+top_k = 3
 # 加载嵌入模型
 Settings.embed_model = HuggingFaceEmbedding(
     model_name="BAAI/bge-large-zh-v1.5",
     cache_folder="./BAAI/",
     embed_batch_size=128,
     local_files_only=True,  # 仅加载本地模型，不尝试下载
-    # device="cuda",
+    device="cuda",
 )
 
 # 加载大模型
@@ -63,8 +63,8 @@ except:
     index.storage_context.persist(persist_dir=persist_dir)
 
 # prompt
-query_str = "How many people are on the deck after ten o'clock?"
-# query_str = "what is computer science?"
+# query_str = "How many people are on the deck after ten o'clock?"
+query_str = "Who did Fang Hongjian kiss?"
 qa_prompt_tmpl_str = """
 Context information is below.
 ---------------------
@@ -80,12 +80,12 @@ qa_prompt_tmpl = PromptTemplate(qa_prompt_tmpl_str)
 if hybrid_search:
     bm25_retriever = BM25Retriever.from_defaults(
         nodes=nodes,
-        similarity_top_k=2,
+        similarity_top_k=top_k,
         stemmer=Stemmer.Stemmer("english"),
         language="english",
     )
-    vector_retriever = VectorIndexRetriever(index=index, similarity_top_k=2)
-    custom_retriever = CustomRetriever(vector_retriever, bm25_retriever)
+    vector_retriever = VectorIndexRetriever(index=index, similarity_top_k=top_k)
+    custom_retriever = CustomRetriever(vector_retriever, bm25_retriever, mode="AND", alpha=0.3)
     query_engine = RetrieverQueryEngine.from_args(
         # 自定义prompt Template
         text_qa_template=qa_prompt_tmpl,
@@ -93,8 +93,8 @@ if hybrid_search:
         retriever=custom_retriever,
         # the target key defaults to `window` to match the node_parser's default
         node_postprocessors=[
-            # LLM reranker
-            LLMRerank(top_n=2, llm=Settings.llm),
+            # LLM reranker（注意：使用大模型进行重排序时不保证输出可解析）
+            # LLMRerank(top_n=top_k, llm=Settings.llm),
             # replace the sentence in each node with its surrounding context.
             MetadataReplacementPostProcessor(target_metadata_key="window"),
         ],
@@ -104,10 +104,10 @@ if hybrid_search:
     )
 else:
     # Build a tree index over the set of candidate nodes, with a summary prompt seeded with the query. with LLM reranker
-    query_engine = index.as_query_engine(similarity_top_k=2,
+    query_engine = index.as_query_engine(similarity_top_k=top_k,
                                          text_qa_template=qa_prompt_tmpl,
                                          node_postprocessors=[
-                                             LLMRerank(top_n=2, llm=Settings.llm),
+                                             # LLMRerank(top_n=top_k, llm=Settings.llm),
                                              MetadataReplacementPostProcessor(target_metadata_key="window"),
                                          ],
                                          response_synthesizer=get_response_synthesizer(
@@ -136,6 +136,7 @@ except:
     pass
 
 """
+示例1：
 Question: How many people are on the deck after ten o'clock?
 ------------------
 Response: After ten o'clock, there were only three or five pairs of men and women on the deck.
@@ -143,5 +144,14 @@ Response: After ten o'clock, there were only three or five pairs of men and wome
 Window: Sun with two empty chairs.  Fortunately, the cigarette incident just now fell into their eyes.  That evening, there was a sea breeze and the boat was a bit bumpy.  After ten o'clock, there were only three or five pairs of men and women on the deck, all hiding in the dark shadows that could not be illuminated by the lights, whispering sweet words.  Fang Hongjian and Miss Bao walked side by side without saying a word.  A big wave shook the hull of the ship, and Miss Bao couldn't stand steadily.  Fang Hongjian hooked her waist and leaned against the railing, kissing her greedily. 
 ------------------
 Original Sentence: After ten o'clock, there were only three or five pairs of men and women on the deck, all hiding in the dark shadows that could not be illuminated by the lights, whispering sweet words. 
+------------------
+示例2：
+Question: Who did Fang Hongjian kiss?
+------------------
+Response: Fang Hongjian kissed Miss Bao.
+------------------
+Window: After ten o'clock, there were only three or five pairs of men and women on the deck, all hiding in the dark shadows that could not be illuminated by the lights, whispering sweet words.  Fang Hongjian and Miss Bao walked side by side without saying a word.  A big wave shook the hull of the ship, and Miss Bao couldn't stand steadily.  Fang Hongjian hooked her waist and leaned against the railing, kissing her greedily.  Miss Bao's lips hinted, her body obediently, and this hurried and rough kiss gradually stabilized, growing perfectly close.  Miss Bao deftly pushed away Fang Hongjian's arm, took a deep breath, and said, "I'm suffocating you!  I'm catching a cold and can't breathe in my nose - it's too cheap for you, you haven't begged me to love you yet.
+------------------
+Original Sentence: Fang Hongjian hooked her waist and leaned against the railing, kissing her greedily. 
 ------------------
 """
