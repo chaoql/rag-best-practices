@@ -28,7 +28,7 @@ Generation](https://arxiv.org/abs/2407.01219)中提到的方案进行实现，�
 
 1. 通过镜像安装依赖库；
     `pip install -i https://pypi.doubanio.com/simple/ -r requirements.txt`
-2. 基于Ollama下载qwen2-1.5b到本地（设备允许的话建议选择参数量更大的模型，直接调用商业api也可以）； 
+2. 基于Ollama下载qwen2-1.5b到本地（设备允许的话建议选择参数量更大的模型，直接调用商业api也可以，代码中也给出了使用glm4模型的示例）； 
 3. 首次运行时修改main.py中HuggingFaceEmbedding函数参数：local_files_only=False
 4. 运行main.py。
 

@@ -33,7 +33,12 @@ class CustomRetriever(BaseRetriever):
 
         vector_nodes = self._vector_retriever.retrieve(query_bundle)
         keyword_nodes = self._keyword_retriever.retrieve(query_bundle)
-
+        # for node in vector_nodes:
+        #     print(node)
+        # print("----------")
+        # for node in keyword_nodes:
+        #     print(node)
+        # print("----------")
         vector_ids = {n.node.node_id for n in vector_nodes}
         keyword_ids = {n.node.node_id for n in keyword_nodes}
 
@@ -49,6 +54,13 @@ class CustomRetriever(BaseRetriever):
         for n in keyword_nodes:
             n.score = (n.score - minB) / (maxB - minB)
 
+        # for node in vector_nodes:
+        #     print(node)
+        # print("----------")
+        # for node in keyword_nodes:
+        #     print(node)
+        # print("----------")
+
         # 分数加权合并
         combined_dict = {n.node.node_id: n for n in vector_nodes}
         for n in keyword_nodes:
@@ -61,6 +73,7 @@ class CustomRetriever(BaseRetriever):
             retrieve_ids = vector_ids.union(keyword_ids)
 
         retrieve_nodes = [combined_dict[rid] for rid in retrieve_ids]
+
         for node in retrieve_nodes:
             print(node)
         print("----------")
