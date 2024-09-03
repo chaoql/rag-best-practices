@@ -10,48 +10,69 @@ from custom.retriever import CustomRetriever
 from llama_index.core.postprocessor import MetadataReplacementPostProcessor
 from llama_index.core import get_response_synthesizer
 from llama_index.core.response_synthesizers.type import ResponseMode
+from llama_index.core import Settings
+from llama_index.core.postprocessor import LLMRerank
+from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
 
 
 def build_query_engine(index: VectorStoreIndex,
                        response_mode: ResponseMode = ResponseMode.TREE_SUMMARIZE,
                        qa_prompt_tmpl: Optional[BasePromptTemplate] = None,
-                       hybrid_search: bool = False,
-                       top_k: int = 2,
-                       nodes: Optional[List[BaseNode]] = None, ):
-    if hybrid_search:
-        bm25_retriever = BM25Retriever.from_defaults(
-            nodes=nodes,
-            similarity_top_k=top_k,
-            stemmer=Stemmer.Stemmer("english"),
-            language="english",
-        )
-        vector_retriever = VectorIndexRetriever(index=index, similarity_top_k=top_k)
-        custom_retriever = CustomRetriever(vector_retriever, bm25_retriever, mode="AND", alpha=0.3)
-        rag_query_engine = RetrieverQueryEngine.from_args(
-            # 自定义prompt Template
-            text_qa_template=qa_prompt_tmpl,
-            # hybrid search
-            retriever=custom_retriever,
-            # the target key defaults to `window` to match the node_parser's default
-            node_postprocessors=[
-                # LLM reranker（注意：使用大模型进行重排序时不保证输出可解析）
-                # LLMRerank(top_n=top_k, llm=Settings.llm),
-                # replace the sentence in each node with its surrounding context.
-                MetadataReplacementPostProcessor(target_metadata_key="window"),
-            ],
-            # 对上下文进行简单摘要，当上下文较长或检索到的块较多时应使用tree_summary，否则使用simple_summary。
-            response_synthesizer=get_response_synthesizer(
-                response_mode=response_mode),
-        )
+                       with_hybrid_search: bool = False,
+                       top_k: int = 5,
+                       top_k_rerank: int = 2,
+                       with_rerank: bool = True,
+                       nodes: Optional[List[BaseNode]] = None):
+    reranker = FlagEmbeddingReranker(
+        top_n=top_k_rerank,
+        model="BAAI/bge-reranker-large",
+        use_fp16=True,
+    )
+    if with_hybrid_search:
+        if with_rerank:
+            rag_query_engine = index.as_query_engine(similarity_top_k=top_k,
+                                                     text_qa_template=qa_prompt_tmpl,
+                                                     node_postprocessors=[reranker, MetadataReplacementPostProcessor(
+                                                         target_metadata_key="window")],
+                                                     sparse_top_k=12,
+                                                     vector_store_query_mode="hybrid",
+                                                     response_synthesizer=get_response_synthesizer(
+                                                         response_mode=response_mode,
+                                                         # refine_template=PromptTemplate(refine_tmpl_str)
+                                                     ),
+                                                     )
+        else:
+            rag_query_engine = index.as_query_engine(similarity_top_k=top_k,
+                                                     text_qa_template=qa_prompt_tmpl,
+                                                     node_postprocessors=[MetadataReplacementPostProcessor(
+                                                         target_metadata_key="window")],
+                                                     sparse_top_k=12,
+                                                     vector_store_query_mode="hybrid",
+                                                     response_synthesizer=get_response_synthesizer(
+                                                         response_mode=response_mode,
+                                                         # refine_template=PromptTemplate(refine_tmpl_str)
+                                                     ),
+                                                     )
+
     else:
         # Build a tree index over the set of candidate nodes, with a summary prompt seeded with the query. with LLM reranker
-        rag_query_engine = index.as_query_engine(similarity_top_k=top_k,
-                                                 text_qa_template=qa_prompt_tmpl,
-                                                 node_postprocessors=[
-                                                     # LLMRerank(top_n=top_k, llm=Settings.llm),
-                                                     MetadataReplacementPostProcessor(target_metadata_key="window"),
-                                                 ],
-                                                 response_synthesizer=get_response_synthesizer(
-                                                     response_mode=response_mode),
-                                                 )
+        if with_rerank:
+            rag_query_engine = index.as_query_engine(similarity_top_k=top_k,
+                                                     text_qa_template=qa_prompt_tmpl,
+                                                     node_postprocessors=[
+                                                         reranker,
+                                                         MetadataReplacementPostProcessor(target_metadata_key="window"),
+                                                     ],
+                                                     response_synthesizer=get_response_synthesizer(
+                                                         response_mode=response_mode),
+                                                     )
+        else:
+            rag_query_engine = index.as_query_engine(similarity_top_k=top_k,
+                                                     text_qa_template=qa_prompt_tmpl,
+                                                     node_postprocessors=[
+                                                         MetadataReplacementPostProcessor(target_metadata_key="window"),
+                                                     ],
+                                                     response_synthesizer=get_response_synthesizer(
+                                                         response_mode=response_mode),
+                                                     )
     return rag_query_engine

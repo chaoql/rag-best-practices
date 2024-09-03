@@ -145,3 +145,10 @@ milvus-practices.ipynb
 qdrant-practices.ipynb
 rag.ipynb
 .idea
+store
+hybrid_Store
+checkpoints
+FTEmbed.py
+qa_finetune_dataset.json
+val_dataset.json
+train_dataset.json
