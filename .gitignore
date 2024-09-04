@@ -144,7 +144,8 @@ milvus-practices.ipynb
 qdrant-practices.ipynb
 rag.ipynb
 .idea
-store
+.gitee
+stores
 hybrid_Store
 checkpoints
 

@@ -3,10 +3,10 @@ from llama_index.llms.ollama import Ollama
 from llama_index.core.node_parser import SentenceWindowNodeParser
 from llama_index.core import PromptTemplate, get_response_synthesizer, StorageContext, VectorStoreIndex, \
     SimpleDirectoryReader, Settings
+from FTEmbed import finetuning_data_preparation, finetuning_embedding, eval_finetuning_embedding
 from llama_index.core.indices.query.query_transform import HyDEQueryTransform
 from llama_index.core.query_engine import TransformQueryEngine
 from llama_index.core.response_synthesizers.type import ResponseMode
-import warnings
 from custom.glmfz import ChatGLM
 from llama_index.core.tools import QueryEngineTool
 from llama_index.core.query_engine import RouterQueryEngine
@@ -15,10 +15,8 @@ from dotenv import load_dotenv, find_dotenv
 from dotenv import dotenv_values
 from custom.query import build_query_engine
 from custom.prompt import qa_prompt_tmpl_str, simple_qa_prompt_tmpl_str, rag_description, norag_rag_description
-from llama_index.finetuning import SentenceTransformersFinetuneEngine
-from llama_index.core.evaluation import EmbeddingQAFinetuneDataset
 from utils import load_hybrid_data, load_txt_data
-from FTEmbed import finetuning_data_preparation, finetuning_embedding, eval_finetuning_embedding
+import warnings
 
 warnings.filterwarnings('ignore')
 # 导入环境
