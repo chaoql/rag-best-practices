@@ -139,7 +139,6 @@ cython_debug/
 
 
 BAAI
-storeQ
 llamaindex-practices.ipynb
 milvus-practices.ipynb
 qdrant-practices.ipynb
@@ -148,7 +147,4 @@ rag.ipynb
 store
 hybrid_Store
 checkpoints
-FTEmbed.py
-qa_finetune_dataset.json
-val_dataset.json
-train_dataset.json
+

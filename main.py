@@ -18,6 +18,7 @@ from custom.prompt import qa_prompt_tmpl_str, simple_qa_prompt_tmpl_str, rag_des
 from llama_index.finetuning import SentenceTransformersFinetuneEngine
 from llama_index.core.evaluation import EmbeddingQAFinetuneDataset
 from utils import load_hybrid_data, load_txt_data
+from FTEmbed import finetuning_data_preparation, finetuning_embedding, eval_finetuning_embedding
 
 warnings.filterwarnings('ignore')
 # 导入环境
@@ -36,17 +37,36 @@ response_mode = ResponseMode.SIMPLE_SUMMARIZE  # RAG架构，最佳实践为为T
 with_query_classification = False  # 是否对输入的问题进行分类
 with_rerank = True  # 是否采用重排序
 with_local_llm = False  # 是否采用本地基于Ollama的大模型
-
-query_str = "Did Fang Hung-chien kiss Miss Bao?"
+with_Finetuning_embedding = False  # 是否微调嵌入模型
+with_Finetuning_embedding_eval = False  # 是否测评微调嵌入模型的命中率
+# 提问
+# query_str = "Did Fang Hung-chien kiss Miss Bao?"
+query_str = "In the text, which lady did Fang Hongjian kiss on the ship, and under what circumstances did it happen?"
 
 # 加载嵌入模型
-Settings.embed_model = HuggingFaceEmbedding(
-    model_name="BAAI/bge-large-en-v1.5",
-    cache_folder="./BAAI/",
-    embed_batch_size=128,
-    local_files_only=True,  # 仅加载本地模型，不尝试下载
-    device="cuda",
-)
+if with_Finetuning_embedding:
+    # 微调需要开启VPN
+    finetuning_data_preparation(all_data=["data/testdata.txt"], llm=Settings.llm, verbose=False,
+                                train_dataset_dir="ft_data/train_dataset.json",
+                                val_dataset_dir="ft_data/val_dataset.json",
+                                qa_finetune_train_dataset_dir="ft_data/qa_finetune_train_dataset.json",
+                                qa_finetune_val_dataset_dir="ft_data/qa_finetune_val_dataset.json")
+    Settings.embed_model = finetuning_embedding(train_dataset_dir="ft_data/train_dataset.json",
+                                                val_dataset_dir="ft_data/val_dataset.json",
+                                                model_name="BAAI/bge-large-en-v1.5",
+                                                model_output_path="BAAI/ft-bge-large-en-v1.5/")
+    # 测评微调后的嵌入模型命中率
+    if with_Finetuning_embedding_eval:
+        eval_finetuning_embedding(embed_model=Settings.embed_model, val_dataset_dir="ft_data/val_dataset.json",
+                                  model_name="ft-bge-large-en-v1.5")
+else:
+    Settings.embed_model = HuggingFaceEmbedding(
+        model_name="BAAI/bge-large-en-v1.5",
+        cache_folder="./BAAI/",
+        embed_batch_size=128,
+        local_files_only=True,  # 仅加载本地模型，不尝试下载
+        device="cuda",
+    )
 
 # 加载大模型
 if with_local_llm:
@@ -119,7 +139,7 @@ if not with_query_classification or response.metadata['selector_result'].ind == 
     print("------------------")
 
 """
-示例：
+示例1：
 Question: Did Fang Hung-chien kiss Miss Bao?
 ------------------
 Response: Yes, Fang Hung-chien kissed Miss Bao.
@@ -128,5 +148,15 @@ Window: A big wave shook the hull badly, and Miss Bao could not stand steadily. 
  "I beg you now, ok?"  It seems that all men who have never been in love, Fang Hung-chien regards the word "love" too noble and serious and refuses to apply it to women casually; He only felt that he wanted Miss Bao and didn't love her, so he was so evasive.
 ------------------
 Original Sentence: Miss Bao deftly pushed off Fang Hung-chien's arm, took a deep breath in her mouth and said, "I'm suffocated by you! 
+------------------
+
+示例2：
+Question: In the text, which lady did Fang Hongjian kiss on the ship, and under what circumstances did it happen?
+------------------
+Response: In the text, Fang Hongjian kissed Miss Bao on the ship. It happened in the dark shadows of the deck, after a big wave shook the hull, causing Miss Bao to lose her balance. Fang Hongjian hooked her waist to steady her and then kissed her.
+------------------
+Window: After ten o'clock, there were only three or five pairs of men and women on the deck, all hiding in the dark shadows where the lights could not shine.  Fang Hung-chien and Miss Bao walked side by side without talking.  A big wave shook the hull badly, and Miss Bao could not stand steadily.  Fang hung-chien hooked her waist and stayed by the railing, kissing her greedily.  Miss Bao's lips suggested that the body followed, and this hasty and rude kiss gradually stabilized and grew properly and densely.  Miss Bao deftly pushed off Fang Hung-chien's arm, took a deep breath in her mouth and said, "I'm suffocated by you!  I have a cold and I can't breathe in my nose-it's too cheap for you, and you haven't asked me to love you! "
+------------------
+Original Sentence: Fang hung-chien hooked her waist and stayed by the railing, kissing her greedily. 
 ------------------
 """
